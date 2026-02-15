@@ -112,7 +112,7 @@ func (s *SubscriptionService) Update(ctx context.Context, subscription Subscript
 func (s *SubscriptionService) ReadByID(ctx context.Context,
 	subscriptionID SubscriptionID,
 ) (Subscription, error) {
-	slog.DebugContext(ctx, "Service: getting latest subscription.", log.RequestID(ctx))
+	slog.DebugContext(ctx, "Service: getting subscription.", log.RequestID(ctx))
 	var subscription Subscription
 	err := s.provider.Execute(ctx, func(ctx context.Context, c Connection) error {
 		var dbError error

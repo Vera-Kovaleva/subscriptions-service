@@ -127,6 +127,11 @@ func (s *SubscriptionRepository) CalculateTotalCost(ctx context.Context,
 	start time.Time,
 	end *time.Time,
 ) (int, error) {
+	if end == nil {
+		now := time.Now()
+		end = &now
+	}
+
 	const query = `select 
     COALESCE(sum(
         month_cost * (

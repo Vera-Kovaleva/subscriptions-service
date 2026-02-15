@@ -144,7 +144,6 @@ func (s *Server) CalculateTotalCost(
 		"start_date", request.Params.StartDate,
 		"end_date", request.Params.EndDate)
 
-	// Parse MM-YYYY format
 	start, err := time.Parse("01-2006", request.Params.StartDate)
 	if err != nil {
 		slog.Error(
