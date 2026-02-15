@@ -48,6 +48,17 @@ paths:
             type: string
             format: uuid
           required: true
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
           description: List of subscriptions

@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+
 	"github.com/Vera-Kovaleva/subscriptions-service/internal/domain"
 )
 

@@ -12,14 +12,35 @@ import (
 var _ SubscriptionInterface = (*SubscriptionService)(nil)
 
 var (
-	errServiceSubscription           = errors.New("service error")
-	ErrServiceReadByIDSubscription   = errors.Join(errServiceSubscription, errors.New("read by id failed"))
-	ErrGetLatestSubscriptionEndDate  = errors.Join(errServiceSubscription, errors.New("get end date failed"))
-	ErrServiceCreateSubscription     = errors.Join(errServiceSubscription, errors.New("create failed"))
-	ErrServiceDeleteSubscription     = errors.Join(errServiceSubscription, errors.New("delete failed"))
-	ErrServiceUpdateSubscription     = errors.Join(errServiceSubscription, errors.New("update failed"))
-	ErrServiceReadAllByUserID        = errors.Join(errServiceSubscription, errors.New("read all by user id failed"))
-	ErrServiceTotalSubscriptionsCost = errors.Join(errServiceSubscription, errors.New("total cost failed"))
+	errServiceSubscription         = errors.New("service error")
+	ErrServiceReadByIDSubscription = errors.Join(
+		errServiceSubscription,
+		errors.New("read by id failed"),
+	)
+	ErrGetLatestSubscriptionEndDate = errors.Join(
+		errServiceSubscription,
+		errors.New("get end date failed"),
+	)
+	ErrServiceCreateSubscription = errors.Join(
+		errServiceSubscription,
+		errors.New("create failed"),
+	)
+	ErrServiceDeleteSubscription = errors.Join(
+		errServiceSubscription,
+		errors.New("delete failed"),
+	)
+	ErrServiceUpdateSubscription = errors.Join(
+		errServiceSubscription,
+		errors.New("update failed"),
+	)
+	ErrServiceReadAllByUserID = errors.Join(
+		errServiceSubscription,
+		errors.New("read all by user id failed"),
+	)
+	ErrServiceTotalSubscriptionsCost = errors.Join(
+		errServiceSubscription,
+		errors.New("total cost failed"),
+	)
 )
 
 type SubscriptionService struct {
@@ -107,12 +128,13 @@ func (s *SubscriptionService) ReadByID(ctx context.Context,
 func (s *SubscriptionService) ReadAllByUserID(
 	ctx context.Context,
 	subscriptionUserID UserID,
+	limit int, offset int,
 ) ([]Subscription, error) {
 	slog.DebugContext(ctx, "Service: reading subscription by user ID.", log.RequestID(ctx))
 	var subscriptions []Subscription
 	err := s.provider.Execute(ctx, func(ctx context.Context, c Connection) error {
 		var dbErr error
-		subscriptions, dbErr = s.subscriptionRepo.ReadAll(ctx, c, subscriptionUserID)
+		subscriptions, dbErr = s.subscriptionRepo.ReadAll(ctx, c, subscriptionUserID, limit, offset)
 		return dbErr
 	})
 	if err != nil {
@@ -128,11 +150,11 @@ func (s *SubscriptionService) TotalSubscriptionsCost(
 	start time.Time,
 	end *time.Time,
 ) (int, error) {
-	var totalCosts []int
+	var totalCost int
 	err := s.provider.Execute(ctx, func(ctx context.Context, c Connection) error {
 		slog.DebugContext(ctx, "Service: calculating total cost.", log.RequestID(ctx))
 		var dbErr error
-		totalCosts, dbErr = s.subscriptionRepo.AllMatchingSubscriptionsForPeriod(
+		totalCost, dbErr = s.subscriptionRepo.CalculateTotalCost(
 			ctx,
 			c,
 			subscriptionUserID,
@@ -142,12 +164,8 @@ func (s *SubscriptionService) TotalSubscriptionsCost(
 		)
 		return dbErr
 	})
-	totalCost := 0
 	if err != nil {
 		return totalCost, errors.Join(ErrServiceTotalSubscriptionsCost, err)
-	}
-	for _, curCost := range totalCosts {
-		totalCost += curCost
 	}
 	return totalCost, nil
 }

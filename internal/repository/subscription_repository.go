@@ -2,22 +2,32 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/Vera-Kovaleva/subscriptions-service/internal/domain"
 )
 
 var (
-	errSubscription                      = errors.New("subscription repository error")
-	ErrCreateSubscription                = errors.Join(errSubscription, errors.New("create failed"))
-	ErrReadSubscription                  = errors.Join(errSubscription, errors.New("read failed"))
-	ErrReadAllSubscriptions              = errors.Join(errSubscription, errors.New("read all failed"))
+	errSubscription         = errors.New("subscription repository error")
+	ErrCreateSubscription   = errors.Join(errSubscription, errors.New("create failed"))
+	ErrReadSubscription     = errors.Join(errSubscription, errors.New("read failed"))
+	ErrReadAllSubscriptions = errors.Join(
+		errSubscription,
+		errors.New("read all failed"),
+	)
 	ErrDeleteSubscription                = errors.Join(errSubscription, errors.New("delete failed"))
 	ErrUpdateSubscription                = errors.Join(errSubscription, errors.New("update failed"))
-	ErrAllMatchingSubscriptionsForPeriod = errors.Join(errSubscription, errors.New("all matching subscriptions failed"))
-	ErrGetLatestDateSubscription         = errors.Join(errSubscription, errors.New("get latest date failed"))
+	ErrAllMatchingSubscriptionsForPeriod = errors.Join(
+		errSubscription,
+		errors.New("all matching subscriptions failed"),
+	)
+	ErrGetLatestDateSubscription = errors.Join(
+		errSubscription,
+		errors.New("get latest date failed"),
+	)
 )
 
 var _ domain.SubscriptionsRepository = (*SubscriptionRepository)(nil)
@@ -28,7 +38,11 @@ func NewSubscription() *SubscriptionRepository {
 	return &SubscriptionRepository{}
 }
 
-func (s *SubscriptionRepository) Create(ctx context.Context, connection domain.Connection, subscription domain.Subscription) error {
+func (s *SubscriptionRepository) Create(
+	ctx context.Context,
+	connection domain.Connection,
+	subscription domain.Subscription,
+) error {
 	const query = `insert into subscriptions
 	(id, service_name, month_cost, user_id, subs_start_date, subs_end_date)
 	values
@@ -66,6 +80,12 @@ func (s *SubscriptionRepository) Read(ctx context.Context,
 	where id = $1`
 
 	if err := connection.GetContext(ctx, &subscription, query, subscriptionID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return subscription, errors.Join(
+				ErrReadSubscription,
+				errors.New("subscription not found"),
+			)
+		}
 		return subscription, errors.Join(ErrReadSubscription, err)
 	}
 	return subscription, nil
@@ -75,10 +95,12 @@ func (s *SubscriptionRepository) ReadAll(
 	ctx context.Context,
 	connection domain.Connection,
 	userID domain.UserID,
+	limit int,
+	offset int,
 ) ([]domain.Subscription, error) {
-	const query = `select id, service_name, month_cost, user_id, subs_start_date, subs_end_date from subscriptions where user_id=$1`
+	const query = `select id, service_name, month_cost, user_id, subs_start_date, subs_end_date from subscriptions where user_id=$1 order by subs_start_date desc limit $2 offset $3`
 	var allUserSubscriptions []domain.Subscription
-	if err := connection.SelectContext(ctx, &allUserSubscriptions, query, userID); err != nil {
+	if err := connection.SelectContext(ctx, &allUserSubscriptions, query, userID, limit, offset); err != nil {
 		return allUserSubscriptions, errors.Join(ErrReadAllSubscriptions, err)
 	}
 	return allUserSubscriptions, nil
@@ -98,19 +120,33 @@ func (s *SubscriptionRepository) Update(ctx context.Context,
 	return nil
 }
 
-func (s *SubscriptionRepository) AllMatchingSubscriptionsForPeriod(ctx context.Context,
+func (s *SubscriptionRepository) CalculateTotalCost(ctx context.Context,
 	connection domain.Connection,
 	subscriptionUserID domain.UserID,
 	subscriptionName domain.ServiceName,
 	start time.Time,
 	end *time.Time,
-) ([]int, error) {
-	const query = `select month_cost from subscriptions where user_id = $1 and service_name = $2 and subs_start_date <= $4 and (subs_end_date is null or subs_end_date >= $3)`
-	var matchesSubscriptions []int
-	if err := connection.SelectContext(ctx, &matchesSubscriptions, query, subscriptionUserID, subscriptionName, start, end); err != nil {
-		return matchesSubscriptions, errors.Join(ErrAllMatchingSubscriptionsForPeriod, err)
+) (int, error) {
+	const query = `select 
+    COALESCE(sum(
+        month_cost * (
+            -- Calculate number of months between start and end
+            (extract(year from least(COALESCE(subs_end_date, $4), $4))::int - 
+             extract(year from greatest(subs_start_date, $3))::int) * 12 +
+            (extract(month from least(COALESCE(subs_end_date, $4), $4))::int - 
+             extract(month from greatest(subs_start_date, $3))::int) + 1
+        )
+    ), 0) as total_cost
+from subscriptions 
+where user_id = $1 
+  and ($2 = '' OR service_name = $2)
+  and subs_start_date <= $4 
+  and (subs_end_date IS NULL OR subs_end_date >= $3)`
+	var totalCost int
+	if err := connection.GetContext(ctx, &totalCost, query, subscriptionUserID, subscriptionName, start, end); err != nil {
+		return totalCost, errors.Join(ErrAllMatchingSubscriptionsForPeriod, err)
 	}
-	return matchesSubscriptions, nil
+	return totalCost, nil
 }
 
 func (s *SubscriptionRepository) GetLatestSubscriptionEndDate(ctx context.Context,
@@ -122,7 +158,7 @@ func (s *SubscriptionRepository) GetLatestSubscriptionEndDate(ctx context.Contex
 	where user_id = $1 and service_name = $2 order by subs_start_date desc limit 1`
 	var latestDate *time.Time
 	if err := connection.GetContext(ctx, &latestDate, query, userID, serviceName); err != nil &&
-		!errors.Is(err, sql.ErrNoRows) {
+		!errors.Is(err, pgx.ErrNoRows) {
 		return nil, errors.Join(ErrGetLatestDateSubscription, err)
 	}
 	return latestDate, nil

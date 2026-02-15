@@ -2,6 +2,8 @@ package http
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/Vera-Kovaleva/subscriptions-service/internal/domain"
@@ -23,7 +25,10 @@ func NewServer(
 	}
 }
 
-func (s *Server) CreateSubscription(ctx context.Context, request CreateSubscriptionRequestObject) (CreateSubscriptionResponseObject, error) {
+func (s *Server) CreateSubscription(
+	ctx context.Context,
+	request CreateSubscriptionRequestObject,
+) (CreateSubscriptionResponseObject, error) {
 	subscription, err := toDomainSubscription(request.Body)
 	if err != nil {
 		return CreateSubscription400JSONResponse{
@@ -43,9 +48,19 @@ func (s *Server) CreateSubscription(ctx context.Context, request CreateSubscript
 	return CreateSubscription201JSONResponse(toHTTPSubscription(subscription)), nil
 }
 
-func (s *Server) DeleteSubscription(ctx context.Context, request DeleteSubscriptionRequestObject) (DeleteSubscriptionResponseObject, error) {
+func (s *Server) DeleteSubscription(
+	ctx context.Context,
+	request DeleteSubscriptionRequestObject,
+) (DeleteSubscriptionResponseObject, error) {
 	err := s.subscriptions.Delete(ctx, uuid.UUID(request.Id))
 	if err != nil {
+		// Check if error message contains "not found"
+		if strings.Contains(err.Error(), "not found") {
+			return DeleteSubscription404JSONResponse{
+				Message: "Subscription not found",
+			}, nil
+		}
+		slog.Error("Failed to delete subscription", "error", err, "id", request.Id)
 		return DeleteSubscription500JSONResponse{
 			Message: "Failed to delete subscription",
 		}, nil
@@ -55,7 +70,10 @@ func (s *Server) DeleteSubscription(ctx context.Context, request DeleteSubscript
 	}, nil
 }
 
-func (s *Server) GetSubscription(ctx context.Context, request GetSubscriptionRequestObject) (GetSubscriptionResponseObject, error) {
+func (s *Server) GetSubscription(
+	ctx context.Context,
+	request GetSubscriptionRequestObject,
+) (GetSubscriptionResponseObject, error) {
 	sub, err := s.subscriptions.ReadByID(ctx, uuid.UUID(request.Id))
 	if err != nil {
 		return GetSubscription404JSONResponse{
@@ -65,12 +83,42 @@ func (s *Server) GetSubscription(ctx context.Context, request GetSubscriptionReq
 	return GetSubscription200JSONResponse(toHTTPSubscription(sub)), nil
 }
 
-func (s *Server) ReadAllSubscriptions(ctx context.Context, request ReadAllSubscriptionsRequestObject) (ReadAllSubscriptionsResponseObject, error) {
+func (s *Server) ReadAllSubscriptions(
+	ctx context.Context,
+	request ReadAllSubscriptionsRequestObject,
+) (ReadAllSubscriptionsResponseObject, error) {
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("Panic in ReadAllSubscriptions", "panic", r)
+		}
+	}()
+
+	// Set defaults for optional parameters
+	limit := 50
+	offset := 0
+
+	if request.Params.Limit != nil {
+		limit = *request.Params.Limit
+	}
+
+	if request.Params.Offset != nil {
+		offset = *request.Params.Offset
+	}
+
+	slog.Info("ReadAllSubscriptions called",
+		"user_id", request.Params.UserId,
+		"limit", limit,
+		"offset", offset)
+
 	list, err := s.subscriptions.ReadAllByUserID(
 		ctx,
 		uuid.UUID(request.Params.UserId),
+		limit,
+		offset,
 	)
 	if err != nil {
+		slog.Error("Failed to read subscriptions", "error", err)
 		return ReadAllSubscriptions500JSONResponse{
 			Message: "Failed to retrieve subscriptions",
 		}, nil
@@ -81,13 +129,31 @@ func (s *Server) ReadAllSubscriptions(ctx context.Context, request ReadAllSubscr
 		resp = append(resp, toHTTPSubscription(sub))
 	}
 
+	slog.Info("ReadAllSubscriptions success", "count", len(resp))
+
 	return ReadAllSubscriptions200JSONResponse(resp), nil
 }
 
-func (s *Server) CalculateTotalCost(ctx context.Context, request CalculateTotalCostRequestObject) (CalculateTotalCostResponseObject, error) {
+func (s *Server) CalculateTotalCost(
+	ctx context.Context,
+	request CalculateTotalCostRequestObject,
+) (CalculateTotalCostResponseObject, error) {
+	slog.Info("CalculateTotalCost called",
+		"user_id", request.Params.UserId,
+		"service_name", *request.Params.ServiceName,
+		"start_date", request.Params.StartDate,
+		"end_date", request.Params.EndDate)
+
 	// Parse MM-YYYY format
 	start, err := time.Parse("01-2006", request.Params.StartDate)
 	if err != nil {
+		slog.Error(
+			"Invalid start_date format",
+			"error",
+			err,
+			"start_date",
+			request.Params.StartDate,
+		)
 		return CalculateTotalCost400JSONResponse{
 			Message: "Invalid start_date format. Expected MM-YYYY (e.g., 07-2025)",
 		}, nil
@@ -97,12 +163,15 @@ func (s *Server) CalculateTotalCost(ctx context.Context, request CalculateTotalC
 	if request.Params.EndDate != nil {
 		t, err := time.Parse("01-2006", *request.Params.EndDate)
 		if err != nil {
+			slog.Error("Invalid end_date format", "error", err, "end_date", *request.Params.EndDate)
 			return CalculateTotalCost400JSONResponse{
 				Message: "Invalid end_date format. Expected MM-YYYY (e.g., 12-2025)",
 			}, nil
 		}
 		end = &t
 	}
+
+	slog.Info("Parsed dates", "start", start, "end", end)
 
 	totalCost, err := s.subscriptions.TotalSubscriptionsCost(
 		ctx,
@@ -111,12 +180,14 @@ func (s *Server) CalculateTotalCost(ctx context.Context, request CalculateTotalC
 		start,
 		end,
 	)
-
 	if err != nil {
+		slog.Error("Failed to calculate total cost", "error", err)
 		return CalculateTotalCost500JSONResponse{
 			Message: "Failed to calculate total cost",
 		}, nil
 	}
+
+	slog.Info("CalculateTotalCost result", "total_cost", totalCost)
 
 	return CalculateTotalCost200JSONResponse{
 		TotalCost: totalCost,

@@ -38,7 +38,7 @@ type (
 		ReadByID(context.Context, SubscriptionID) (Subscription, error)
 		Update(context.Context, Subscription) error
 		Delete(context.Context, SubscriptionID) error
-		ReadAllByUserID(context.Context, UserID) ([]Subscription, error)
+		ReadAllByUserID(context.Context, UserID, int, int) ([]Subscription, error)
 		TotalSubscriptionsCost(
 			context.Context,
 			UserID,

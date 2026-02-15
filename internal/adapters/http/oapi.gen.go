@@ -56,6 +56,8 @@ type TotalCostResponse struct {
 // ReadAllSubscriptionsParams defines parameters for ReadAllSubscriptions.
 type ReadAllSubscriptionsParams struct {
 	UserId openapi_types.UUID `form:"user_id" json:"user_id"`
+	Limit  *int               `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int               `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // CalculateTotalCostParams defines parameters for CalculateTotalCost.
@@ -117,6 +119,22 @@ func (siw *ServerInterfaceWrapper) ReadAllSubscriptions(w http.ResponseWriter, r
 	err = runtime.BindQueryParameter("form", true, true, "user_id", r.URL.Query(), &params.UserId)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
 		return
 	}
 

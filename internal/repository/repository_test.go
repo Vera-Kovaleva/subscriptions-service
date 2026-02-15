@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 func rollback(t *testing.T, test func(context.Context, domain.Connection)) {
 	provider := cleanTablesAndCreateProvider(t)
 	defer provider.Close()

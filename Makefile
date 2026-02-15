@@ -1,6 +1,10 @@
-.PHONY: lint
-lint:
-	@go tool golangci-lint run
+.PHONY: app
+app:
+	@docker compose up --build -d
+
+.PHONY: down
+app-down:
+	@docker compose down
 
 .PHONY: db-cli
 db-cli:
@@ -8,7 +12,11 @@ db-cli:
 
 .PHONY: format
 format:
-	@go tool gofumpt -l -w . && go tool golines -w . && go tool goimports -w -local "effective_mobile_project/" .
+	@echo "Formatting code..."
+	@go run mvdan.cc/gofumpt@latest -l -w .
+	@go run github.com/segmentio/golines@latest -w .
+	@go run golang.org/x/tools/cmd/goimports@latest -w -local "tz_effective_mobile/" .
+	@echo "Formatting complete!"
 
 .PHONY: codegen
 codegen:

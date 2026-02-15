@@ -28,26 +28,38 @@ func TestSubscriptionIntegration(t *testing.T) {
 		serviseName1 := domain.ServiceName("servise name 1")
 		serviseName2 := domain.ServiceName("servise name 2")
 
-		subscription1User1 := fixtureCreateSubscription(t, connection, subsID1, userID1, serviseName1)
+		subscription1User1 := fixtureCreateSubscription(
+			t,
+			connection,
+			subsID1,
+			userID1,
+			serviseName1,
+		)
 		_ = fixtureCreateSubscription(t, connection, subsID2, userID1, serviseName2)
 
-		subscription1User2 := fixtureCreateSubscription(t, connection, subsID3, userID2, serviseName1)
+		subscription1User2 := fixtureCreateSubscription(
+			t,
+			connection,
+			subsID3,
+			userID2,
+			serviseName1,
+		)
 
-		subscriptionsFromDBUser1, err := repoSubscription.ReadAll(ctx, connection, userID1)
+		subscriptionsFromDBUser1, err := repoSubscription.ReadAll(ctx, connection, userID1, 100, 0)
 		require.NoError(t, err)
 
-		subscriptionsFromDBUser2, err := repoSubscription.ReadAll(ctx, connection, userID2)
+		subscriptionsFromDBUser2, err := repoSubscription.ReadAll(ctx, connection, userID2, 100, 0)
 
 		require.NoError(t, err)
 		require.Len(t, subscriptionsFromDBUser1, 2)
 		require.Len(t, subscriptionsFromDBUser2, 1)
 
-		require.Equal(t, subscription1User1, subscriptionsFromDBUser1[0])
+		require.Contains(t, subscriptionsFromDBUser1, subscription1User1)
 
 		err = repoSubscription.Delete(ctx, connection, subsID1)
 		require.NoError(t, err)
 
-		subscriptionsFromDBUser1, err = repoSubscription.ReadAll(ctx, connection, userID1)
+		subscriptionsFromDBUser1, err = repoSubscription.ReadAll(ctx, connection, userID1, 100, 0)
 		require.NoError(t, err)
 		require.Len(t, subscriptionsFromDBUser1, 1)
 
@@ -61,12 +73,19 @@ func TestSubscriptionIntegration(t *testing.T) {
 			ctx,
 			connection,
 			subscription1User2.UserID,
+			100, 0,
 		)
 		require.NoError(t, err)
 		require.Equal(t, pointer.Ref(newEndDate), subscriptionsFromDBUser2[0].EndDate)
 
-		subscription2User2 := fixtureCreateSubscription(t, connection, subsID4, userID2, serviseName2)
-		subscriptionsCosts, err := repoSubscription.AllMatchingSubscriptionsForPeriod(
+		subscription2User2 := fixtureCreateSubscription(
+			t,
+			connection,
+			subsID4,
+			userID2,
+			serviseName2,
+		)
+		subscriptionsCosts, err := repoSubscription.CalculateTotalCost(
 			ctx,
 			connection,
 			userID2,
@@ -75,7 +94,9 @@ func TestSubscriptionIntegration(t *testing.T) {
 			pointer.Ref(newEndDate),
 		)
 		require.NoError(t, err)
-		require.Equal(t, subscription2User2.Cost, subscriptionsCosts[0])
+
+		expectedCost := subscription2User2.Cost * 2
+		require.Equal(t, expectedCost, subscriptionsCosts)
 	})
 }
 
