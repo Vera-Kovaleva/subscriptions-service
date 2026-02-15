@@ -1,0 +1,261 @@
+openapi: 3.0.0
+info:
+  title: Backend Subscription Service
+  description: REST API for managing user subscriptions
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /subscriptions:
+    post:
+      summary: Create subscription
+      operationId: CreateSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Subscription successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List of subscriptions
+      operationId: ReadAllSubscriptions
+      parameters:
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        '200':
+          description: List of subscriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subscription'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /subscriptions/{id}:
+    get:
+      summary: Get subscription by ID
+      operationId: GetSubscription
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Subscription found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete subscription
+      operationId: DeleteSubscription
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Subscription deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /subscriptions/total:
+    get:
+      summary: Calculate total subscription cost
+      operationId: CalculateTotalCost
+      parameters:
+        - in: query
+          name: user_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: service_name
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: start_date
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{2}-\d{4}$'
+            example: "07-2025"
+        - in: query
+          name: end_date
+          required: false
+          schema:
+            type: string
+            pattern: '^\d{2}-\d{4}$'
+            example: "12-2025"
+      responses:
+        '200':
+          description: Total cost calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TotalCostResponse'
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+
+    Subscription:
+      type: object
+      required:
+        - id
+        - user_id
+        - service_name
+        - price
+        - start_date
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+          description: Monthly subscription price
+        start_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          example: "07-2025"
+        end_date:
+          type: string
+          nullable: true
+          pattern: '^\d{2}-\d{4}$'
+          example: "12-2025"
+
+    CreateSubscriptionRequest:
+      type: object
+      required:
+        - user_id
+        - service_name
+        - price
+        - start_date
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+        start_date:
+          type: string
+          pattern: '^\d{2}-\d{4}$'
+          example: "07-2025"
+        end_date:
+          type: string
+          nullable: true
+          pattern: '^\d{2}-\d{4}$'
+          example: "12-2025"
+
+    TotalCostResponse:
+      type: object
+      required:
+        - total_cost
+      properties:
+        total_cost:
+          type: integer
+          description: Total subscription cost
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+
+    SuccessResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string

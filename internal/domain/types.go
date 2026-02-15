@@ -42,7 +42,7 @@ type (
 		TotalSubscriptionsCost(
 			context.Context,
 			UserID,
-			*ServiceName,
+			ServiceName,
 			time.Time,
 			*time.Time,
 		) (int, error)

@@ -84,6 +84,20 @@ func (s *SubscriptionRepository) ReadAll(
 	return allUserSubscriptions, nil
 }
 
+func (s *SubscriptionRepository) Update(ctx context.Context,
+	connection domain.Connection,
+	subscription domain.Subscription,
+) error {
+	const query = `update subscriptions set service_name = $2 , user_id = $3, month_cost = $4, subs_end_date=$5
+	where id = $1`
+
+	if _, err := connection.ExecContext(ctx, query, subscription.ID, subscription.Name, subscription.UserID, subscription.Cost, subscription.EndDate); err != nil {
+		return errors.Join(ErrUpdateSubscription, err)
+	}
+
+	return nil
+}
+
 func (s *SubscriptionRepository) AllMatchingSubscriptionsForPeriod(ctx context.Context,
 	connection domain.Connection,
 	subscriptionUserID domain.UserID,
@@ -97,20 +111,6 @@ func (s *SubscriptionRepository) AllMatchingSubscriptionsForPeriod(ctx context.C
 		return matchesSubscriptions, errors.Join(ErrAllMatchingSubscriptionsForPeriod, err)
 	}
 	return matchesSubscriptions, nil
-}
-
-func (s *SubscriptionRepository) Update(ctx context.Context,
-	connection domain.Connection,
-	subscription domain.Subscription,
-) error {
-	const query = `update subscriptions set service_name = $2 , user_id = $3, month_cost = $4, subs_end_date=$5
-	where id = $1`
-
-	if _, err := connection.ExecContext(ctx, query, subscription.ID, subscription.Name, subscription.UserID, subscription.Cost, subscription.EndDate); err != nil {
-		return errors.Join(ErrUpdateSubscription, err)
-	}
-
-	return nil
 }
 
 func (s *SubscriptionRepository) GetLatestSubscriptionEndDate(ctx context.Context,

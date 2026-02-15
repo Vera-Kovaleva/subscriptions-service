@@ -1,21 +1,6 @@
-.PHONY: debug
-debug: docker-check
-	@docker compose --profile dev down && docker system prune --volumes --force && docker compose --profile dev up -d
-
-.PHONY: docker-check
-docker-check:
-	@if ! command -v docker &> /dev/null; then \
-		echo "Error: Docker is not installed. Please install Docker first."; \
-		exit 1; \
-	fi
-
 .PHONY: lint
 lint:
 	@go tool golangci-lint run
-
-.PHONY: test
-test:
-	@go test -count=1 -covermode=atomic ./... | grep -v "/generated/"
 
 .PHONY: db-cli
 db-cli:
@@ -27,5 +12,4 @@ format:
 
 .PHONY: codegen
 codegen:
-	@go tool oapi-codegen --config=.oapi-codegen.yaml assignment/swagger.yaml \
-	&& mockery --log-level="" && rm -rf internal/generated/mocks && mkdir internal/generated/mocks && mockery --log-level=""
+	@go tool oapi-codegen --config=.oapi-codegen.yaml assignment/swagger.yaml
